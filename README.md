@@ -4,7 +4,7 @@
 
 The bot buys with a set amount of currency when the current price crosses above 24h EMA. The price will keep rising in theory, due to market momentum. When the price starts to decline, the bot will sell bought assets after the current price pierces below 24h EMA. 
 
-It is planned to switch to MACD indicator to find the predicted point where price will start to drop. This way, the bot will be able to sell assets in higher prices, before the price hits 24h EMA. 
+It is planned to switch to MACD indicator to predict the optimum selling price where the price will start to drop. This way, the bot will be able to sell assets in higher prices, before the price hits 24h EMA. 
 
 ## Usage
 
