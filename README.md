@@ -31,11 +31,26 @@ conda activate binance-bot
 
 5. Create a Binance API key through https://www.binance.com/en/my/settings/api-management
 
-6. Run the program with your API key and secret and desired symbol to trade
+6. Run the program with your API key and secret and optionally the symbol to trade and the amount of asset to trade with
 
 ```
-python binance_boy.py --symbol TRADINGSYMBOL(eg. BTCUSDT) --key BINANCEAPIKEY --secret BINANCEAPISECRET
+python binance_bot.py --key BINANCEAPIKEY --secret BINANCEAPISECRET
 ```
+
+For example, the command below buys and sells $10 worth of BTC according to the trading strategy stated above.
+
+```
+python binance_bot.py --key BINANCEAPIKEY --secret BINANCEAPISECRET --symbol BTCUSDT --amount 10
+```
+
+## Arguments
+
+| Parameter                 | Default        | Description                       |
+| :------------------------ | :-------------:| :-------------------------------- |
+| --symbol 	                | BTCUSDT        | the symbol to trade
+| --amount                  | 10.0           | the amount of asset to trade with
+| --key                     | None	         | Binance API key
+| --secret                  | None	         | Binance API secret
 
 ## Liability
 
