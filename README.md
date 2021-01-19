@@ -37,7 +37,7 @@ conda activate binance-bot
 python binance_bot.py --key BINANCEAPIKEY --secret BINANCEAPISECRET
 ```
 
-For example, the command below buys and sells $10 worth of BTC according to the trading strategy stated above.
+For example, the command below buys and sells $10 worth of BTC according to the trading strategy stated above
 
 ```
 python binance_bot.py --key BINANCEAPIKEY --secret BINANCEAPISECRET --symbol BTCUSDT --amount 10
