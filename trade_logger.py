@@ -26,7 +26,7 @@ class Logger(object):
     @staticmethod
     def cleanup():
         Logger.__throw_if_uninitialized()
-        Logger.__logger.shutdown()
+        logging.shutdown()
 
     @staticmethod
     def debug(msg):

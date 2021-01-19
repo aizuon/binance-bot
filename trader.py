@@ -46,11 +46,11 @@ class Trader(object):
         self.__symbol_idx = len(Trader.__symbols) - 1
 
         self.__last_hour = None
-        self.__buy_amount_currency = opt.amount
-        self.__have_quantity = 0
-        self.__bought_price = 0
-        self.est_profit_total = 0
         self.__daily_ema = 0
+        self.__comission = 0.001
+        self.__bought_price = 0
+        self.__have_quantity = 0
+        self.est_profit_total = 0
 
         self.__normal_tick = 2
         self.__hour_tick = 10
@@ -63,14 +63,33 @@ class Trader(object):
         self.__notification_modulo = 10
         self.__notification_sound = "coin"
 
+        symbol_info = self.__client.get_symbol_info(Trader.__symbols[self.__symbol_idx])
+        if symbol_info is None:
+            raise Exception("Symbol not found")
+
+        filters = symbol_info["filters"]
+
+        min_filter = [f for f in filters if f["filterType"] == "MIN_NOTIONAL"]
+        if len(min_filter) == 1:
+            min_notional = float(min_filter[0]["minNotional"])
+            if hasattr(opt, "amount"):
+                if opt.amount * (1 - self.__comission) < min_notional:
+                    raise Exception("Specified amount is less than minimum trade asset")
+                else:
+                    self.__buy_amount_currency = opt.amount
+            else:
+                self.__buy_amount_currency = min_notional + (min_notional * self.__comission) # (1 + commission) causes fpe
+        else:
+            if hasattr(opt, "amount"):
+                self.__buy_amount_currency = opt.amount
+            else:
+                raise Exception("Trade asset amount isnt set and min filter doesnt exist")
         
-        lot_filter = [f for f in self.__client.get_symbol_info(Trader.__symbols[self.__symbol_idx])["filters"] if f["filterType"] == "LOT_SIZE"]
+        lot_filter = [f for f in filters if f["filterType"] == "LOT_SIZE"]
         if len(lot_filter) == 1:
             self.__precision = int(round(-math.log(float(lot_filter[0]["stepSize"]), 10), 0))
         else:
             self.__precision = 6
-
-        self.__comission = 0.001
 
         Logger.info("Started")
         Logger.info(f"Working for {Trader.__symbols[self.__symbol_idx]} pair with {self.__buy_amount_currency} assets")
@@ -111,7 +130,7 @@ class Trader(object):
                 if self.__buy_signals >= self.__buy_threshold:
                     Logger.debug("Buying")
 
-                    quantity = round(Decimal((self.__buy_amount_currency * (1 - self.__comission)) / current_price), self.__precision)
+                    quantity = round(Decimal((self.__buy_amount_currency - (self.__comission * self.__buy_amount_currency)) / current_price), self.__precision) # (1 - commission) causes fpe
                     try:
                         self.__client.create_order(symbol=Trader.__symbols[self.__symbol_idx], side=Client.SIDE_BUY, type=Client.ORDER_TYPE_MARKET, quantity=quantity)
                     except requests.exceptions.ReadTimeout:
