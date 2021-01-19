@@ -33,20 +33,20 @@ class Trader(object):
 
     __symbols = []
 
-    def __init__(self, symbol, api_key, api_secret):
+    def __init__(self, opt):
         super().__init__()
 
         if Trader.__client is None:
-            Trader.__client = Client(api_key, api_secret)
+            Trader.__client = Client(opt.key, opt.secret)
 
-        if symbol in Trader.__symbols:
+        if opt.symbol in Trader.__symbols:
             raise Exception("Symbol already added")
 
-        Trader.__symbols.append(symbol)
+        Trader.__symbols.append(opt.symbol)
         self.__symbol_idx = len(Trader.__symbols) - 1
 
         self.__last_hour = None
-        self.__buy_amount_currency = 10
+        self.__buy_amount_currency = opt.amount
         self.__have_quantity = 0
         self.__bought_price = 0
         self.est_profit_total = 0
@@ -73,7 +73,7 @@ class Trader(object):
         self.__comission = 0.001
 
         Logger.info("Started")
-        Logger.info(f"Working for {Trader.__symbols[self.__symbol_idx]} pair")
+        Logger.info(f"Working for {Trader.__symbols[self.__symbol_idx]} pair with {self.__buy_amount_currency} assets")
 
     def loop(self):
         while True:

@@ -2,7 +2,7 @@
 
 ## Trading Strategy
 
-The bot buys with a set amount of currency when the current price crosses above 24h EMA. The price will keep rising in theory due to market momentum. When the price starts to decline, the bot will sell bought assets after the current price pierces below 24h EMA. 
+The bot buys with a set amount of currency when the current price crosses above 24h EMA. The price will keep rising in theory, due to market momentum. When the price starts to decline, the bot will sell bought assets after the current price pierces below 24h EMA. 
 
 ## Usage
 1. Clone this repository
@@ -39,4 +39,4 @@ python binance_boy.py --symbol TRADINGSYMBOL(eg. BTCUSDT) --key BINANCEAPIKEY --
 
 ## Liability
 
-The program provided in the repository is not a product nor an investing tool, but an educational asset. None of the contributors to this project are liable for any losses you may incur. 
+The program provided in the repository is not a product nor an investing tool, but an educational asset. None of the contributors to this project are liable for any losses the user may incur. 
