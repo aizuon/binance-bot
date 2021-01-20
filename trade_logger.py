@@ -51,9 +51,9 @@ class Logger(object):
     @staticmethod
     def buy(symbol, price, amount):
         Logger.__throw_if_uninitialized()
-        Logger.__logger.info(f"BUY {symbol} => Price: {price}, Amount: {amount}")
+        Logger.__logger.info(f"{symbol} BUY Price: {price}, Amount: {amount}")
 
     @staticmethod
     def sell(symbol, price, amount, est_profit_percent, est_profit, est_profit_total):
         Logger.__throw_if_uninitialized()
-        Logger.__logger.info(f"SELL {symbol} => Price: {price}, Amount: {amount}, Estimated Profit Percent: {est_profit_percent}%, Estimated Profit: {est_profit}, Estimated Profit Total: {est_profit_total}")
+        Logger.__logger.info(f"{symbol} SELL Price: {price}, Amount: {amount}, Estimated Profit Percent: {est_profit_percent}%, Estimated Profit: {est_profit}, Estimated Profit Total: {est_profit_total}")

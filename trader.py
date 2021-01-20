@@ -140,11 +140,11 @@ class Trader(object):
                         Logger.error(f"Timeout buying {Trader.__symbols[self.__symbol_idx]}")
                         return
 
-                    Logger.buy(Trader.__symbols[self.__symbol_idx], current_price, quantity)
-                    beep(sound=self.__notification_sound)
-
                     self.__bought_price = current_price
-                    self.__have_quantity = quantity
+                    self.__have_quantity = float(quantity)
+
+                    Logger.buy(Trader.__symbols[self.__symbol_idx], self.__bought_price, self.__have_quantity)
+                    beep(sound=self.__notification_sound)
 
                     self.__buy_signals = 0
                 elif self.__sell_signals >= self.__sell_threshold:
