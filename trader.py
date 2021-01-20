@@ -76,14 +76,12 @@ class Trader(object):
         if len(min_filter) == 1:
             min_notional = float(min_filter[0]["minNotional"])
             if not math.isnan(opt.current_amount):
-                if opt.amount * (1 - Trader.__comission) < min_notional:
+                if opt.amount < min_notional:
                     raise Exception(f"Specified amount is less than minimum trade asset for symbol {Trader.__symbols[self.__symbol_idx]}")
-                elif opt.amount * (1 - (Trader.__safety_factor +Trader.__comission)) < min_notional:
-                    raise Exception(f"Specified amount with safety factor is less than minimum trade asset for symbol {Trader.__symbols[self.__symbol_idx]}")
                 else:
                     self.__buy_amount_currency = opt.amount
             else:
-                self.__buy_amount_currency = (min_notional + (min_notional * (Trader.__safety_factor - Trader.__comission))) # (1 + (Trader.__safety_factor - commission)) causes fpe
+                self.__buy_amount_currency = min_notional
         else:
             if not math.isnan(opt.current_amount):
                 self.__buy_amount_currency = opt.amount
@@ -133,7 +131,7 @@ class Trader(object):
                 if self.__buy_signals >= self.__buy_threshold:
                     Logger.debug(f"Buying {Trader.__symbols[self.__symbol_idx]}")
 
-                    quantity = Decimal((self.__buy_amount_currency - (Trader.__comission * self.__buy_amount_currency)) / current_price).quantize(Decimal('.' + ('0' * (self.__precision - 1)) + '1'), rounding=ROUND_UP) # (1 - commission) causes fpe
+                    quantity = Decimal((1 + Trader.__comission + Trader.__safety_factor) * (self.__buy_amount_currency / current_price)).quantize(Decimal('.' + ('0' * (self.__precision - 1)) + '1'), rounding=ROUND_UP)
                     try:
                         Trader.__client.create_order(symbol=Trader.__symbols[self.__symbol_idx], side=Client.SIDE_BUY, type=Client.ORDER_TYPE_MARKET, quantity=quantity)
                     except ReadTimeout:
