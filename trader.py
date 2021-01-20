@@ -2,7 +2,7 @@ import datetime as dt
 import math
 from decimal import Decimal, ROUND_UP
 import asyncio
-import requests
+from requests.exceptions import ReadTimeout
 
 import pandas as pd
 from binance.client import Client
@@ -136,7 +136,7 @@ class Trader(object):
                     quantity = Decimal((self.__buy_amount_currency - (Trader.__comission * self.__buy_amount_currency)) / current_price).quantize(Decimal('.' + ('0' * (self.__precision - 1)) + '1'), rounding=ROUND_UP) # (1 - commission) causes fpe
                     try:
                         Trader.__client.create_order(symbol=Trader.__symbols[self.__symbol_idx], side=Client.SIDE_BUY, type=Client.ORDER_TYPE_MARKET, quantity=quantity)
-                    except requests.exceptions.ReadTimeout:
+                    except ReadTimeout:
                         Logger.error(f"Timeout buying {Trader.__symbols[self.__symbol_idx]}")
                         return
 
@@ -152,7 +152,7 @@ class Trader(object):
 
                     try:
                         Trader.__client.create_order(symbol=Trader.__symbols[self.__symbol_idx], side=Client.SIDE_SELL, type=Client.ORDER_TYPE_MARKET, quantity=self.__have_quantity)
-                    except requests.exceptions.ReadTimeout:
+                    except ReadTimeout:
                         Logger.error(f"Timeout selling {Trader.__symbols[self.__symbol_idx]}")
                         return
 
@@ -202,7 +202,7 @@ class Trader(object):
         try:
             data = Trader.__client.get_historical_klines(Trader.__symbols[self.__symbol_idx], internal, f"{n} hours ago UTC")
             candles = pd.DataFrame(data, columns=[Trader.__date_open, Trader.__open, Trader.__high, Trader.__low, Trader.__close, Trader.__volume, Trader.__date_close, Trader.__volume_asset, Trader.__trades, Trader.__volume_asset_buy, Trader.__volume_asset_sell, Trader.__ignore])
-        except requests.exceptions.ReadTimeout:
+        except ReadTimeout:
             Logger.error(f"Timeout getting candles for symbol {Trader.__symbols[self.__symbol_idx]}")
             candles = pd.DataFrame(columns=[Trader.__date_open, Trader.__open, Trader.__high, Trader.__low, Trader.__close, Trader.__volume, Trader.__date_close, Trader.__volume_asset, Trader.__trades, Trader.__volume_asset_buy, Trader.__volume_asset_sell, Trader.__ignore])
         
