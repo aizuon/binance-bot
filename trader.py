@@ -2,6 +2,7 @@ import datetime as dt
 import math
 from decimal import Decimal
 import asyncio
+import requests
 
 import pandas as pd
 from binance.client import Client
@@ -32,6 +33,9 @@ class Trader(object):
 
     __symbols = []
 
+    __comission = 0.001
+    __safety_factor = 0.1
+
     def __init__(self, opt):
         super().__init__()
 
@@ -47,7 +51,6 @@ class Trader(object):
 
         self.__last_hour = None
         self.__daily_ema = 0
-        self.__comission = 0.001
         self.__bought_price = 0
         self.__have_quantity = 0
         self.est_profit_total = 0
@@ -73,12 +76,14 @@ class Trader(object):
         if len(min_filter) == 1:
             min_notional = float(min_filter[0]["minNotional"])
             if hasattr(opt, "amount"):
-                if opt.amount * (1 - self.__comission) < min_notional:
+                if opt.amount * (1 - Trader.__comission) < min_notional:
                     raise Exception(f"Specified amount is less than minimum trade asset for symbol {Trader.__symbols[self.__symbol_idx]}")
+                elif opt.amount * (1 - (Trader.__safety_factor +Trader.__comission)) < min_notional:
+                    raise Exception(f"Specified amount with safety factor is less than minimum trade asset for symbol {Trader.__symbols[self.__symbol_idx]}")
                 else:
                     self.__buy_amount_currency = opt.amount
             else:
-                self.__buy_amount_currency = min_notional + (min_notional * self.__comission) # (1 + commission) causes fpe
+                self.__buy_amount_currency = (min_notional + (min_notional * (Trader.__safety_factor - Trader.__comission))) # (1 + (Trader.__safety_factor - commission)) causes fpe
         else:
             if hasattr(opt, "amount"):
                 self.__buy_amount_currency = opt.amount
@@ -128,11 +133,11 @@ class Trader(object):
                 if self.__buy_signals >= self.__buy_threshold:
                     Logger.debug(f"Buying {Trader.__symbols[self.__symbol_idx]}")
 
-                    quantity = round(Decimal((self.__buy_amount_currency - (self.__comission * self.__buy_amount_currency)) / current_price), self.__precision) # (1 - commission) causes fpe
+                    quantity = round(Decimal((self.__buy_amount_currency - (Trader.__comission * self.__buy_amount_currency)) / current_price), self.__precision) # (1 - commission) causes fpe
                     try:
                         Trader.__client.create_order(symbol=Trader.__symbols[self.__symbol_idx], side=Client.SIDE_BUY, type=Client.ORDER_TYPE_MARKET, quantity=quantity)
-                    except Exception:
-                        Logger.error(f"Exception buying {Trader.__symbols[self.__symbol_idx]}")
+                    except requests.exceptions.ReadTimeout:
+                        Logger.error(f"Timeout buying {Trader.__symbols[self.__symbol_idx]}")
                         return
 
                     Logger.buy(Trader.__symbols[self.__symbol_idx], current_price, quantity)
@@ -147,13 +152,13 @@ class Trader(object):
 
                     try:
                         Trader.__client.create_order(symbol=Trader.__symbols[self.__symbol_idx], side=Client.SIDE_SELL, type=Client.ORDER_TYPE_MARKET, quantity=self.__have_quantity)
-                    except Exception:
-                        Logger.error(f"Exception selling {Trader.__symbols[self.__symbol_idx]}")
+                    except requests.exceptions.ReadTimeout:
+                        Logger.error(f"Timeout selling {Trader.__symbols[self.__symbol_idx]}")
                         return
 
                     price_diff = (current_price - self.__bought_price)
-                    est_profit_percent = (((price_diff / self.__bought_price) * 100) - self.__comission)
-                    est_profit = ((price_diff * self.__have_quantity) * (1 - self.__comission))
+                    est_profit_percent = (((price_diff / self.__bought_price) * 100) - Trader.__comission)
+                    est_profit = ((price_diff * self.__have_quantity) * (1 - Trader.__comission))
                     self.est_profit_total += est_profit
                     Logger.sell(Trader.__symbols[self.__symbol_idx], current_price, self.__have_quantity, est_profit_percent, est_profit, self.est_profit_total)
                     beep(sound=self.__notification_sound)
@@ -197,8 +202,8 @@ class Trader(object):
         try:
             data = Trader.__client.get_historical_klines(Trader.__symbols[self.__symbol_idx], internal, f"{n} hours ago UTC")
             candles = pd.DataFrame(data, columns=[Trader.__date_open, Trader.__open, Trader.__high, Trader.__low, Trader.__close, Trader.__volume, Trader.__date_close, Trader.__volume_asset, Trader.__trades, Trader.__volume_asset_buy, Trader.__volume_asset_sell, Trader.__ignore])
-        except Exception:
-            Logger.error(f"Exception getting candles for symbol {Trader.__symbols[self.__symbol_idx]}")
+        except requests.exceptions.ReadTimeout:
+            Logger.error(f"Timeout getting candles for symbol {Trader.__symbols[self.__symbol_idx]}")
             candles = pd.DataFrame(columns=[Trader.__date_open, Trader.__open, Trader.__high, Trader.__low, Trader.__close, Trader.__volume, Trader.__date_close, Trader.__volume_asset, Trader.__trades, Trader.__volume_asset_buy, Trader.__volume_asset_sell, Trader.__ignore])
         
         candles.set_index(Trader.__date_open, inplace=True)
