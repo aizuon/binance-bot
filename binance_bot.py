@@ -9,20 +9,32 @@ from trade_logger import Logger
 async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--symbol", type=str, nargs='+', help="Symbol(s) to trade", default=["BTCUSDT"])
-    parser.add_argument("--amount", type=float, help="Quantity of asset to trade", default=argparse.SUPPRESS)
+    parser.add_argument("--amount", type=float, nargs='+', help="Quantity of asset to trade", default=[float("NaN")])
     parser.add_argument("--key", type=str, help="API key", required=True)
     parser.add_argument("--secret", type=str, help="API secret", required=True)
     opt = parser.parse_args()
+
+    symbol_count = len(opt.symbol)
+    amount_count = len(opt.amount)
+
+    if amount_count < symbol_count:
+        for i in range(symbol_count - amount_count):
+            opt.amount.append(float("NaN"))
+    elif amount_count > symbol_count:
+        raise Exception("Too many amounts passed")
 
     Logger.init()
     atexit.register(Logger.cleanup)
 
     try:
         traders = []
-        for symbol in opt.symbol:
+        for symbol, amount in zip(opt.symbol, opt.amount):
             setattr(opt, "current_symbol", symbol)
+            setattr(opt, "current_amount", amount)
             trader = Trader(opt)
             traders.append(trader)
+            delattr(opt, "current_symbol")
+            delattr(opt, "current_amount")
 
         while True:
             await asyncio.gather(*[trader.loop() for trader in traders])

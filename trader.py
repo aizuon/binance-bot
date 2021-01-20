@@ -75,7 +75,7 @@ class Trader(object):
         min_filter = [f for f in filters if f["filterType"] == "MIN_NOTIONAL"]
         if len(min_filter) == 1:
             min_notional = float(min_filter[0]["minNotional"])
-            if hasattr(opt, "amount"):
+            if not math.isnan(opt.current_amount):
                 if opt.amount * (1 - Trader.__comission) < min_notional:
                     raise Exception(f"Specified amount is less than minimum trade asset for symbol {Trader.__symbols[self.__symbol_idx]}")
                 elif opt.amount * (1 - (Trader.__safety_factor +Trader.__comission)) < min_notional:
@@ -85,7 +85,7 @@ class Trader(object):
             else:
                 self.__buy_amount_currency = (min_notional + (min_notional * (Trader.__safety_factor - Trader.__comission))) # (1 + (Trader.__safety_factor - commission)) causes fpe
         else:
-            if hasattr(opt, "amount"):
+            if not math.isnan(opt.current_amount):
                 self.__buy_amount_currency = opt.amount
             else:
                 raise Exception(f"Trade asset amount isnt set and min filter doesnt exist for symbol {Trader.__symbols[self.__symbol_idx]}")
