@@ -50,7 +50,7 @@ python binance_bot.py --key BINANCEAPIKEY --secret BINANCEAPISECRET --symbol BTC
 
 | Parameter                 | Default        | Description                       |
 | :------------------------ | :-------------:| :-------------------------------- |
-| --symbol 	                | BTCUSDT        | the symbol to trade
+| --symbol 	                | BTCUSDT        | the symbol(s) to trade
 | --amount                  | 10.0           | the amount of asset to trade with
 | --key                     | None	         | Binance API key
 | --secret                  | None	         | Binance API secret
