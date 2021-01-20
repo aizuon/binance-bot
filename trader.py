@@ -1,6 +1,6 @@
 import datetime as dt
 import math
-from decimal import Decimal
+from decimal import Decimal, ROUND_UP
 import asyncio
 import requests
 
@@ -133,7 +133,7 @@ class Trader(object):
                 if self.__buy_signals >= self.__buy_threshold:
                     Logger.debug(f"Buying {Trader.__symbols[self.__symbol_idx]}")
 
-                    quantity = round(Decimal((self.__buy_amount_currency - (Trader.__comission * self.__buy_amount_currency)) / current_price), self.__precision) # (1 - commission) causes fpe
+                    quantity = Decimal((self.__buy_amount_currency - (Trader.__comission * self.__buy_amount_currency)) / current_price).quantize(Decimal('.' + ('0' * (self.__precision - 1)) + '1'), rounding=ROUND_UP) # (1 - commission) causes fpe
                     try:
                         Trader.__client.create_order(symbol=Trader.__symbols[self.__symbol_idx], side=Client.SIDE_BUY, type=Client.ORDER_TYPE_MARKET, quantity=quantity)
                     except requests.exceptions.ReadTimeout:
