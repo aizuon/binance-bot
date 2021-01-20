@@ -48,10 +48,10 @@ python binance_bot.py --key BINANCEAPIKEY --secret BINANCEAPISECRET --symbol BTC
 
 ## Arguments
 
-| Parameter                 | Default        | Description                       |
-| :------------------------ | :-------------:| :-------------------------------- |
+| Parameter                 | Default        | Description                            |
+| :------------------------ | :-------------:| :------------------------------------- |
 | --symbol 	                | BTCUSDT        | the symbol(s) to trade
-| --amount                  | 10.0           | the amount of asset(s) to trade with
+| --amount                  | MIN_NOTIONAL   | the amount(s) of asset(s) to trade with
 | --key                     | None	         | Binance API key
 | --secret                  | None	         | Binance API secret
 
