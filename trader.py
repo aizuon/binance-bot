@@ -141,7 +141,7 @@ class Trader(object):
                         return
 
                     self.__bought_price = current_price
-                    self.__have_quantity = float(quantity)
+                    self.__have_quantity = quantity
 
                     Logger.buy(Trader.__symbols[self.__symbol_idx], self.__bought_price, self.__have_quantity)
                     beep(sound=self.__notification_sound)
@@ -158,7 +158,7 @@ class Trader(object):
 
                     price_diff = (current_price - self.__bought_price)
                     est_profit_percent = (((price_diff / self.__bought_price) * 100) - Trader.__comission)
-                    est_profit = ((price_diff * self.__have_quantity) * (1 - Trader.__comission))
+                    est_profit = ((price_diff * float(self.__have_quantity)) * (1 - Trader.__comission)) # decimal * float cant be computed
                     self.est_profit_total += est_profit
                     Logger.sell(Trader.__symbols[self.__symbol_idx], current_price, self.__have_quantity, est_profit_percent, est_profit, self.est_profit_total)
                     beep(sound=self.__notification_sound)
