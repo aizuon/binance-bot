@@ -1,12 +1,12 @@
 import argparse
 import atexit
-from time import sleep
+import asyncio
 
 from trader import Trader
 from trade_logger import Logger
 
 
-if __name__ == "__main__":
+async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--symbol", type=str, nargs='+', help="Symbol(s) to trade", default=["BTCUSDT"])
     parser.add_argument("--amount", type=float, help="Quantity of asset to trade", default=argparse.SUPPRESS)
@@ -16,17 +16,27 @@ if __name__ == "__main__":
 
     Logger.init()
     atexit.register(Logger.cleanup)
-    atexit.register(Trader.cleanup)
 
     try:
+        traders = []
         for symbol in opt.symbol:
             setattr(opt, "current_symbol", symbol)
             trader = Trader(opt)
-
-            trader.start()
+            traders.append(trader)
 
         while True:
-            sleep(1)
+            await asyncio.gather(*[trader.loop() for trader in traders])
     except Exception:
         Logger.exception("Exception caught")
         exit(1)
+
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    try:
+        loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        loop.stop()
+    finally:
+        loop.run_until_complete(loop.shutdown_asyncgens())
+        asyncio.set_event_loop(None)
+        loop.close()
