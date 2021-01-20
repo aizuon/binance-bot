@@ -1,7 +1,7 @@
-from time import sleep
 import datetime as dt
 import math
 from decimal import Decimal
+import threading
 
 import requests
 import pandas as pd
@@ -32,17 +32,19 @@ class Trader(object):
     __client = None
 
     __symbols = []
+    __traders = []
 
     def __init__(self, opt):
         super().__init__()
 
         if Trader.__client is None:
             Trader.__client = Client(opt.key, opt.secret)
+            Logger.info("Started")
 
-        if opt.symbol in Trader.__symbols:
+        if opt.current_symbol in Trader.__symbols:
             raise Exception("Symbol already added")
 
-        Trader.__symbols.append(opt.symbol)
+        Trader.__symbols.append(opt.current_symbol)
         self.__symbol_idx = len(Trader.__symbols) - 1
 
         self.__last_hour = None
@@ -52,20 +54,20 @@ class Trader(object):
         self.__have_quantity = 0
         self.est_profit_total = 0
 
-        self.__normal_tick = 2
+        self.__normal_tick = 5
         self.__hour_tick = 10
 
         self.__buy_signals = 0
         self.__sell_signals = 0
         self.__buy_threshold = 3 * 60 // self.__normal_tick
         self.__sell_threshold = 2 * 60 // self.__normal_tick
-
-        self.__notification_modulo = 10
+        self.__notification_modulo_buy = self.__buy_threshold // 10
+        self.__notification_modulo_sell = self.__sell_threshold // 10
         self.__notification_sound = "coin"
 
-        symbol_info = self.__client.get_symbol_info(Trader.__symbols[self.__symbol_idx])
+        symbol_info = Trader.__client.get_symbol_info(Trader.__symbols[self.__symbol_idx])
         if symbol_info is None:
-            raise Exception("Symbol not found")
+            raise Exception(f"Symbol {Trader.__symbols[self.__symbol_idx]} not found")
 
         filters = symbol_info["filters"]
 
@@ -74,7 +76,7 @@ class Trader(object):
             min_notional = float(min_filter[0]["minNotional"])
             if hasattr(opt, "amount"):
                 if opt.amount * (1 - self.__comission) < min_notional:
-                    raise Exception("Specified amount is less than minimum trade asset")
+                    raise Exception(f"Specified amount is less than minimum trade asset for symbol {Trader.__symbols[self.__symbol_idx]}")
                 else:
                     self.__buy_amount_currency = opt.amount
             else:
@@ -83,7 +85,7 @@ class Trader(object):
             if hasattr(opt, "amount"):
                 self.__buy_amount_currency = opt.amount
             else:
-                raise Exception("Trade asset amount isnt set and min filter doesnt exist")
+                raise Exception(f"Trade asset amount isnt set and min filter doesnt exist for symbol {Trader.__symbols[self.__symbol_idx]}")
         
         lot_filter = [f for f in filters if f["filterType"] == "LOT_SIZE"]
         if len(lot_filter) == 1:
@@ -91,79 +93,100 @@ class Trader(object):
         else:
             self.__precision = 6
 
-        Logger.info("Started")
+        Trader.__traders.append(self)
         Logger.info(f"Working for {Trader.__symbols[self.__symbol_idx]} pair with {self.__buy_amount_currency} assets")
 
-    def loop(self):
-        while True:
-            now = dt.datetime.now()
-            if self.__last_hour != now.hour:
-                sleep(self.__hour_tick)
+    @staticmethod
+    def cleanup():
+        Logger.info("Cleaning up traders")
 
-                day_prices = self.__get_past_candles(Client.KLINE_INTERVAL_1HOUR, 48)
-                day_prices_close = day_prices[Trader.__close]
-                if len(day_prices_close.array) != 48:
-                    continue
-                self.__daily_ema = float(ema_indicator(day_prices_close, 24).array[-2])
-                Logger.debug(f"Current Price: {day_prices_close.array[-1]}, Daily EMA: {self.__daily_ema}")
+        for trader in Trader.__traders:
+            trader.__working = False
+            trader.__event.set()
+            trader.__thread.join()
 
-                self.__last_hour = now.hour
-            else:
-                sleep(self.__normal_tick)
+    def start(self):
+        self.__working = True
+        self.__event = threading.Event()
+        self.__thread = threading.Thread(target=self.__loop, daemon=True)
+        self.__thread.start()
 
-                last_prices = self.__get_past_candles(Client.KLINE_INTERVAL_1HOUR, 2)
-                last_prices_close = last_prices[Trader.__close]
-                if len(last_prices_close.array) != 2:
-                    continue
-                current_price = float(last_prices_close.array[1])
-                last_price = float(last_prices_close.array[0])
+    def __loop(self):
+        try:
+            while self.__working:
+                now = dt.datetime.now()
+                if self.__last_hour != now.hour:
+                    if self.__event.wait(timeout=self.__hour_tick):
+                        break
 
-                if last_price < self.__daily_ema and current_price > self.__daily_ema:
-                    self.__reset_and_log_sell_signal(last_price, current_price)
-                    if self.__have_quantity == 0:
-                        self.__increment_and_log_buy_signal(last_price, current_price)
-                elif current_price < self.__daily_ema:
-                    self.__reset_and_log_buy_signal(last_price, current_price)
-                    if self.__have_quantity != 0:
-                        self.__increment_and_log_sell_signal(last_price, current_price)
-
-                if self.__buy_signals >= self.__buy_threshold:
-                    Logger.debug("Buying")
-
-                    quantity = round(Decimal((self.__buy_amount_currency - (self.__comission * self.__buy_amount_currency)) / current_price), self.__precision) # (1 - commission) causes fpe
-                    try:
-                        self.__client.create_order(symbol=Trader.__symbols[self.__symbol_idx], side=Client.SIDE_BUY, type=Client.ORDER_TYPE_MARKET, quantity=quantity)
-                    except requests.exceptions.ReadTimeout:
-                        Logger.error("Exception buying")
+                    day_prices = self.__get_past_candles(Client.KLINE_INTERVAL_1HOUR, 48)
+                    day_prices_close = day_prices[Trader.__close]
+                    if len(day_prices_close.array) != 48:
                         continue
+                    self.__daily_ema = float(ema_indicator(day_prices_close, 24).array[-2])
+                    Logger.debug(f"{Trader.__symbols[self.__symbol_idx]} Current Price: {day_prices_close.array[-1]}, Daily EMA: {self.__daily_ema}")
 
-                    Logger.buy(current_price, quantity)
-                    beep(sound=self.__notification_sound)
+                    self.__last_hour = now.hour
+                else:
+                    if self.__event.wait(timeout=self.__normal_tick):
+                        break
 
-                    self.__bought_price = current_price
-                    self.__have_quantity = quantity
-
-                    self.__buy_signals = 0
-                elif self.__sell_signals >= self.__sell_threshold:
-                    Logger.debug("Selling")
-
-                    try:
-                        self.__client.create_order(symbol=Trader.__symbols[self.__symbol_idx], side=Client.SIDE_SELL, type=Client.ORDER_TYPE_MARKET, quantity=self.__have_quantity)
-                    except requests.exceptions.ReadTimeout:
-                        Logger.error("Exception selling")
+                    last_prices = self.__get_past_candles(Client.KLINE_INTERVAL_1HOUR, 2)
+                    last_prices_close = last_prices[Trader.__close]
+                    if len(last_prices_close.array) != 2:
                         continue
+                    current_price = float(last_prices_close.array[1])
+                    last_price = float(last_prices_close.array[0])
 
-                    price_diff = (current_price - self.__bought_price)
-                    est_profit_percent = (((price_diff / self.__bought_price) * 100) - self.__comission)
-                    est_profit = ((price_diff * self.__have_quantity) * (1 - self.__comission))
-                    self.est_profit_total += est_profit
-                    Logger.sell(current_price, self.__have_quantity, est_profit_percent, est_profit, self.est_profit_total)
-                    beep(sound=self.__notification_sound)
+                    if last_price < self.__daily_ema and current_price > self.__daily_ema:
+                        self.__reset_and_log_sell_signal(last_price, current_price)
+                        if self.__have_quantity == 0:
+                            self.__increment_and_log_buy_signal(last_price, current_price)
+                    elif current_price < self.__daily_ema:
+                        self.__reset_and_log_buy_signal(last_price, current_price)
+                        if self.__have_quantity != 0:
+                            self.__increment_and_log_sell_signal(last_price, current_price)
 
-                    self.__bought_price = 0
-                    self.__have_quantity = 0
+                    if self.__buy_signals >= self.__buy_threshold:
+                        Logger.debug(f"Buying {Trader.__symbols[self.__symbol_idx]}")
 
-                    self.__sell_signals = 0
+                        quantity = round(Decimal((self.__buy_amount_currency - (self.__comission * self.__buy_amount_currency)) / current_price), self.__precision) # (1 - commission) causes fpe
+                        try:
+                            Trader.__client.create_order(symbol=Trader.__symbols[self.__symbol_idx], side=Client.SIDE_BUY, type=Client.ORDER_TYPE_MARKET, quantity=quantity)
+                        except Exception:
+                            Logger.error(f"Exception buying {Trader.__symbols[self.__symbol_idx]}")
+                            continue
+
+                        Logger.buy(Trader.__symbols[self.__symbol_idx], current_price, quantity)
+                        beep(sound=self.__notification_sound)
+
+                        self.__bought_price = current_price
+                        self.__have_quantity = quantity
+
+                        self.__buy_signals = 0
+                    elif self.__sell_signals >= self.__sell_threshold:
+                        Logger.debug(f"Selling {Trader.__symbols[self.__symbol_idx]}")
+
+                        try:
+                            Trader.__client.create_order(symbol=Trader.__symbols[self.__symbol_idx], side=Client.SIDE_SELL, type=Client.ORDER_TYPE_MARKET, quantity=self.__have_quantity)
+                        except Exception:
+                            Logger.error(f"Exception selling {Trader.__symbols[self.__symbol_idx]}")
+                            continue
+
+                        price_diff = (current_price - self.__bought_price)
+                        est_profit_percent = (((price_diff / self.__bought_price) * 100) - self.__comission)
+                        est_profit = ((price_diff * self.__have_quantity) * (1 - self.__comission))
+                        self.est_profit_total += est_profit
+                        Logger.sell(Trader.__symbols[self.__symbol_idx], current_price, self.__have_quantity, est_profit_percent, est_profit, self.est_profit_total)
+                        beep(sound=self.__notification_sound)
+
+                        self.__bought_price = 0
+                        self.__have_quantity = 0
+
+                        self.__sell_signals = 0
+        except Exception:
+            Logger.exception(f"Exception caught for symbol {Trader.__symbols[self.__symbol_idx]}")
+            exit(1)
 
     def __reset_and_log_buy_signal(self, last_price, current_price):
         self.__log_reset_signal(Trader.__buy_string, last_price, current_price, self.__buy_signals, self.__buy_threshold)
@@ -177,30 +200,30 @@ class Trader(object):
 
     def __log_reset_signal(self, signal, last_price, current_price, signal_count, signal_threshold):
         if signal_count != 0:
-            Logger.debug(f"{signal} Signal Reset {signal_count}/{signal_threshold} => Last Price: {last_price}, Current Price: {current_price}, Daily EMA: {self.__daily_ema}")
+            Logger.debug(f"{Trader.__symbols[self.__symbol_idx]} {signal} Signal Reset {signal_count}/{signal_threshold} => Last Price: {last_price}, Current Price: {current_price}, Daily EMA: {self.__daily_ema}")
             beep(sound=self.__notification_sound)
 
     def __increment_and_log_buy_signal(self, last_price, current_price):
         self.__buy_signals += 1
 
-        self.__log_signal(Trader.__buy_string, last_price, current_price, self.__buy_signals, self.__buy_threshold)
+        self.__log_signal(Trader.__buy_string, last_price, current_price, self.__buy_signals, self.__buy_threshold, self.__notification_modulo_buy)
 
     def __increment_and_log_sell_signal(self, last_price, current_price):
         self.__sell_signals += 1
 
-        self.__log_signal(Trader.__sell_string, last_price, current_price, self.__sell_signals, self.__sell_threshold)
+        self.__log_signal(Trader.__sell_string, last_price, current_price, self.__sell_signals, self.__sell_threshold, self.__notification_modulo_sell)
 
-    def __log_signal(self, signal, last_price, current_price, signal_count, signal_threshold):
-        if signal_count == 1 or signal_count == signal_threshold or signal_count % self.__notification_modulo == 0:
-            Logger.debug(f"{signal} Signal {signal_count}/{signal_threshold}  => Last Price: {last_price}, Current Price: {current_price}, Daily EMA: {self.__daily_ema}")
+    def __log_signal(self, signal, last_price, current_price, signal_count, signal_threshold, signal_notification_modulo):
+        if signal_count == 1 or signal_count == signal_threshold or signal_count % signal_notification_modulo == 0:
+            Logger.debug(f"{Trader.__symbols[self.__symbol_idx]} {signal} Signal {signal_count}/{signal_threshold}  => Last Price: {last_price}, Current Price: {current_price}, Daily EMA: {self.__daily_ema}")
             beep(sound=self.__notification_sound)
 
     def __get_past_candles(self, internal, n):
         try:
-            data = self.__client.get_historical_klines(Trader.__symbols[self.__symbol_idx], internal, f"{n} hours ago UTC")
+            data = Trader.__client.get_historical_klines(Trader.__symbols[self.__symbol_idx], internal, f"{n} hours ago UTC")
             candles = pd.DataFrame(data, columns=[Trader.__date_open, Trader.__open, Trader.__high, Trader.__low, Trader.__close, Trader.__volume, Trader.__date_close, Trader.__volume_asset, Trader.__trades, Trader.__volume_asset_buy, Trader.__volume_asset_sell, Trader.__ignore])
-        except requests.exceptions.ReadTimeout:
-            Logger.error("Exception getting candles")
+        except Exception:
+            Logger.error(f"Exception getting candles for symbol {Trader.__symbols[self.__symbol_idx]}")
             candles = pd.DataFrame(columns=[Trader.__date_open, Trader.__open, Trader.__high, Trader.__low, Trader.__close, Trader.__volume, Trader.__date_close, Trader.__volume_asset, Trader.__trades, Trader.__volume_asset_buy, Trader.__volume_asset_sell, Trader.__ignore])
         
         candles.set_index(Trader.__date_open, inplace=True)
