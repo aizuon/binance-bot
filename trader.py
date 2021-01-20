@@ -180,7 +180,7 @@ class Trader(object):
 
     def __log_reset_signal(self, signal, last_price, current_price, signal_count, signal_threshold):
         if signal_count != 0:
-            Logger.debug(f"{Trader.__symbols[self.__symbol_idx]} {signal} Signal Reset {signal_count}/{signal_threshold} => Last Price: {last_price}, Current Price: {current_price}, Daily EMA: {self.__daily_ema}")
+            Logger.debug(f"{Trader.__symbols[self.__symbol_idx]} {signal} Signal Reset {signal_count}/{signal_threshold} Last Price: {last_price}, Current Price: {current_price}, Daily EMA: {self.__daily_ema}")
             beep(sound=self.__notification_sound)
 
     def __increment_and_log_buy_signal(self, last_price, current_price):
@@ -195,7 +195,7 @@ class Trader(object):
 
     def __log_signal(self, signal, last_price, current_price, signal_count, signal_threshold, signal_notification_modulo):
         if signal_count == 1 or signal_count == signal_threshold or signal_count % signal_notification_modulo == 0:
-            Logger.debug(f"{Trader.__symbols[self.__symbol_idx]} {signal} Signal {signal_count}/{signal_threshold}  => Last Price: {last_price}, Current Price: {current_price}, Daily EMA: {self.__daily_ema}")
+            Logger.debug(f"{Trader.__symbols[self.__symbol_idx]} {signal} Signal {signal_count}/{signal_threshold} Last Price: {last_price}, Current Price: {current_price}, Daily EMA: {self.__daily_ema}")
             beep(sound=self.__notification_sound)
 
     def __get_past_candles(self, internal, n):
