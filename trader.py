@@ -131,7 +131,7 @@ class Trader(object):
                 if self.__buy_signals >= self.__buy_threshold:
                     Logger.debug(f"Buying {Trader.__symbols[self.__symbol_idx]}")
 
-                    quantity = Decimal((1 + Trader.__comission + Trader.__safety_factor) * (self.__buy_amount_currency / current_price)).quantize(Decimal('.' + ('0' * (self.__precision - 1)) + '1'), rounding=ROUND_UP)
+                    quantity = Decimal((1 + Trader.__safety_factor) * (self.__buy_amount_currency / current_price)).quantize(Decimal('.' + ('0' * (self.__precision - 1)) + '1'), rounding=ROUND_UP)
                     try:
                         Trader.__client.create_order(symbol=Trader.__symbols[self.__symbol_idx], side=Client.SIDE_BUY, type=Client.ORDER_TYPE_MARKET, quantity=quantity)
                     except ReadTimeout:
@@ -139,7 +139,7 @@ class Trader(object):
                         return
 
                     self.__bought_price = current_price
-                    self.__have_quantity = (quantity * Decimal(1 - Trader.__comission)).quantize(Decimal('.' + ('0' * (self.__precision - 1)) + '1'), rounding=ROUND_DOWN)
+                    self.__have_quantity = quantity
 
                     Logger.buy(Trader.__symbols[self.__symbol_idx], self.__bought_price, self.__have_quantity)
                     beep(sound=self.__notification_sound)
@@ -155,8 +155,8 @@ class Trader(object):
                         return
 
                     price_diff = (current_price - self.__bought_price)
-                    est_profit_percent = (((price_diff / self.__bought_price) * 100) - Trader.__comission)
-                    est_profit = ((price_diff * float(self.__have_quantity)) * (1 - Trader.__comission)) # decimal * float cant be computed
+                    est_profit_percent = ((price_diff / self.__bought_price) * 100)
+                    est_profit = (price_diff * float(self.__have_quantity)) # decimal * float cant be computed
                     self.est_profit_total += est_profit
                     Logger.sell(Trader.__symbols[self.__symbol_idx], current_price, self.__have_quantity, est_profit_percent, est_profit, self.est_profit_total)
                     beep(sound=self.__notification_sound)
