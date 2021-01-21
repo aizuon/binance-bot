@@ -1,6 +1,6 @@
 import datetime as dt
 import math
-from decimal import Decimal, ROUND_UP
+from decimal import Decimal, ROUND_UP, ROUND_DOWN
 import asyncio
 from requests.exceptions import ReadTimeout
 
@@ -139,7 +139,7 @@ class Trader(object):
                         return
 
                     self.__bought_price = current_price
-                    self.__have_quantity = quantity
+                    self.__have_quantity = (quantity * Decimal(1 - Trader.__comission)).quantize(Decimal('.' + ('0' * (self.__precision - 1)) + '1'), rounding=ROUND_DOWN)
 
                     Logger.buy(Trader.__symbols[self.__symbol_idx], self.__bought_price, self.__have_quantity)
                     beep(sound=self.__notification_sound)
